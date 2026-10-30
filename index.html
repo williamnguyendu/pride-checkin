@@ -35,7 +35,6 @@
 
         .hidden { display: none !important; }
         
-        /* Cải thiện CSS cho khung quét để tránh bị sụp (đen màn hình) */
         #reader { border: none !important; border-radius: 1rem; overflow: hidden; min-height: 300px; display: flex; flex-direction: column; justify-content: center; background-color: #000; }
         #reader video { object-fit: cover !important; width: 100% !important; border-radius: 1rem; }
     </style>
@@ -64,7 +63,6 @@
     <!-- Main Content -->
     <main class="flex-grow flex flex-col items-center justify-center p-4 w-full max-w-md mx-auto z-10">
         
-        <!-- Trạng thái chưa chọn sự kiện -->
         <div id="no-event" class="glass-card w-full rounded-3xl p-8 text-center hidden pop-in">
             <div class="inline-block p-5 bg-indigo-100 rounded-full mb-4">
                 <i class="fas fa-calendar-plus text-5xl text-indigo-500"></i>
@@ -76,7 +74,6 @@
             </button>
         </div>
 
-        <!-- Trạng thái đã chọn sự kiện -->
         <div id="active-event" class="glass-card w-full rounded-3xl p-6 text-center hidden pop-in">
             <div class="relative inline-block mb-2">
                 <div class="absolute -inset-1 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full blur opacity-40"></div>
@@ -114,9 +111,8 @@
     <!-- Scanner View -->
     <div id="scanner-view" class="fixed inset-0 bg-gray-900 z-40 flex flex-col hidden">
         <div class="px-4 py-4 flex justify-between items-center bg-gray-900 text-white shadow-md z-50">
-            <!-- Nút Lật Camera -->
             <button onclick="switchCamera()" id="btn-switch-camera" class="bg-gray-700/50 p-2 px-3 rounded-full hover:bg-indigo-500 transition-colors hidden flex items-center text-sm font-semibold">
-                <i class="fas fa-sync-alt mr-2"></i> Lật
+                <i class="fas fa-sync-alt mr-2"></i> Đổi Cam
             </button>
             <h3 class="text-lg font-bold tracking-wide flex-grow text-center"><i class="fas fa-qrcode mr-2"></i>Quét QR</h3>
             <button onclick="stopScanner()" class="bg-gray-700/50 p-2 px-3 rounded-full hover:bg-red-500 transition-colors flex items-center text-sm font-semibold">
@@ -160,7 +156,6 @@
         </div>
     </div>
 
-    <!-- Footer -->
     <footer class="bg-white/30 backdrop-blur-md py-4 text-center mt-auto z-10 border-t border-white/20">
         <p class="text-sm text-gray-700 font-medium">Pride Check-In được xây dựng bởi <a href="https://www.pridehome.vn" target="_blank" class="text-indigo-700 hover:text-indigo-900 font-bold hover:underline">Pride Home</a>.</p>
     </footer>
@@ -174,8 +169,9 @@
         let eventList = [];
         let autoCloseTimer = null;
         
-        let currentFacingMode = "environment"; 
-        let isCameraChecked = false;
+        // Quản lý chính xác ID camera thay vì dùng environment/user
+        let availableCameras = [];
+        let currentCameraIndex = 0;
 
         document.addEventListener('DOMContentLoaded', () => {
             updateMainUI();
@@ -227,7 +223,7 @@
                     }
                 }
             } catch (err) {
-                if (!silent) alert("Lỗi khi tải danh sách sự kiện: " + err);
+                if (!silent) console.error("Lỗi tải sự kiện:", err);
             }
             if (!silent) showLoading(false);
         }
@@ -276,56 +272,69 @@
         }
 
         function startScanner() {
-            // Hiển thị khung đen trước
             document.getElementById('scanner-view').classList.remove('hidden');
             
-            // SetTimeout 200ms giúp giao diện load 100% kích thước rồi mới bật camera, tránh lỗi đen màn hình
-            setTimeout(() => {
-                if (!html5QrcodeScanner) {
-                    html5QrcodeScanner = new Html5Qrcode("reader");
-                }
-                
-                const boxSize = Math.min(window.innerWidth * 0.75, 300);
-                
-                // Bỏ aspectRatio để camera tự co giãn tự nhiên, không bị xung đột
-                const config = { 
-                    fps: 10, 
-                    qrbox: { width: boxSize, height: boxSize }
-                };
-                
-                html5QrcodeScanner.start(
-                    { facingMode: currentFacingMode }, 
-                    config, 
-                    onScanSuccess, 
-                    (errorMessage) => {} 
-                ).then(() => {
-                    if (!isCameraChecked) {
-                        Html5Qrcode.getCameras().then(devices => {
-                            if (devices && devices.length > 1) {
+            setTimeout(async () => {
+                try {
+                    // Lấy danh sách ID phần cứng của tất cả camera
+                    if (availableCameras.length === 0) {
+                        const devices = await Html5Qrcode.getCameras();
+                        if (devices && devices.length > 0) {
+                            availableCameras = devices;
+                            
+                            // Tìm ưu tiên camera sau (back/rear/environment)
+                            let backCameraIndex = devices.findIndex(d => 
+                                d.label.toLowerCase().includes('back') || 
+                                d.label.toLowerCase().includes('sau') ||
+                                d.label.toLowerCase().includes('environment')
+                            );
+                            
+                            // Nếu không phân biệt được tên, chọn camera cuối cùng (điện thoại thường xếp cam sau ở cuối)
+                            currentCameraIndex = (backCameraIndex !== -1) ? backCameraIndex : (devices.length > 1 ? devices.length - 1 : 0);
+                            
+                            if (devices.length > 1) {
                                 document.getElementById('btn-switch-camera').classList.remove('hidden');
                             }
-                            isCameraChecked = true;
-                        }).catch(err => console.log("Không thể lấy danh sách camera", err));
+                        } else {
+                            throw new Error("Thiết bị không có camera.");
+                        }
                     }
-                }).catch(err => {
-                    alert("Không thể truy cập camera. Vui lòng cấp quyền hoặc tải lại trang.");
+
+                    if (!html5QrcodeScanner) {
+                        html5QrcodeScanner = new Html5Qrcode("reader");
+                    }
+                    
+                    const boxSize = Math.min(window.innerWidth * 0.75, 300);
+                    const config = { fps: 10, qrbox: { width: boxSize, height: boxSize } };
+                    
+                    // Truyền thẳng ID phần cứng của Camera vào thay vì chữ "environment"
+                    const cameraId = availableCameras[currentCameraIndex].id;
+                    
+                    await html5QrcodeScanner.start(
+                        cameraId, 
+                        config, 
+                        onScanSuccess, 
+                        (errorMessage) => {} 
+                    );
+
+                } catch (err) {
+                    alert("Không thể truy cập camera, vui lòng tải lại trang và cấp quyền!");
+                    console.error(err);
                     stopScanner();
-                });
+                }
             }, 200);
         }
 
         async function switchCamera() {
-            if (html5QrcodeScanner) {
+            if (html5QrcodeScanner && availableCameras.length > 1) {
                 try {
-                    // Dừng hẳn camera cũ bằng await
                     await html5QrcodeScanner.stop();
                     html5QrcodeScanner.clear();
                     html5QrcodeScanner = null;
                     
-                    // Đảo chiều camera
-                    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+                    // Chuyển sang ID camera tiếp theo trong danh sách
+                    currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
                     
-                    // Bật lại
                     startScanner();
                 } catch (err) {
                     console.error("Lỗi khi lật camera:", err);
@@ -334,7 +343,7 @@
         }
 
         async function stopScanner() {
-            if(html5QrcodeScanner) {
+            if (html5QrcodeScanner) {
                 try {
                     await html5QrcodeScanner.stop();
                     html5QrcodeScanner.clear();
