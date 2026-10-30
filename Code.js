@@ -1,4 +1,5 @@
 const SPREADSHEET_ID = '1xlGdKp9WZY2J6WcUvkfYrx1GTJHvrdrLvzeFmQPY86o';
+const TIMEZONE = 'GMT+7'; // Cố định múi giờ Việt Nam
 
 function doGet(e) {
   const action = e.parameter.action;
@@ -71,9 +72,9 @@ function processCheckIn(eventId, qrCode) {
           return { status: 'error', message: 'Vé này đã được check-in trước đó.' };
         }
         
-        // Cập nhật thời gian check-in
+        // Cập nhật thời gian check-in theo giờ Việt Nam
         const now = new Date();
-        const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
+        const timestamp = Utilities.formatDate(now, TIMEZONE, "dd/MM/yyyy HH:mm:ss");
         sheet.getRange(i + 1, colCheckIn + 1).setValue(timestamp);
         
         return {
@@ -96,7 +97,7 @@ function formatDate(date) {
   try {
     const d = new Date(date);
     if (isNaN(d.getTime())) return date;
-    return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yyyy");
+    return Utilities.formatDate(d, TIMEZONE, "dd/MM/yyyy");
   } catch(e) { return date; }
 }
 
@@ -105,6 +106,6 @@ function formatTime(time) {
   try {
     const d = new Date(time);
     if (isNaN(d.getTime())) return time;
-    return Utilities.formatDate(d, Session.getScriptTimeZone(), "HH:mm");
+    return Utilities.formatDate(d, TIMEZONE, "HH:mm");
   } catch(e) { return time; }
 }

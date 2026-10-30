@@ -6,100 +6,172 @@
     <title>Pride Check-In</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- Thêm thư viện pháo giấy Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        
+        /* Gradient Background sinh động */
+        .bg-gradient-main { background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); }
+        
+        /* Hiệu ứng Glassmorphism */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        /* Loading Animation hiện đại */
+        .loader-ring {
+            display: inline-block; width: 60px; height: 60px;
+        }
+        .loader-ring:after {
+            content: " "; display: block; width: 48px; height: 48px; margin: 6px;
+            border-radius: 50%; border: 4px solid #4f46e5;
+            border-color: #4f46e5 transparent #4f46e5 transparent;
+            animation: loader-ring 1.2s linear infinite;
+        }
+        @keyframes loader-ring { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Animation bật lên cho Modal */
+        .pop-in { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
         .hidden { display: none !important; }
+        
+        /* Tùy chỉnh khung camera trong html5-qrcode */
+        #reader { border: none !important; border-radius: 1rem; overflow: hidden; }
+        #reader video { object-fit: cover !important; }
     </style>
 </head>
-<body class="bg-gray-50 flex flex-col min-h-screen text-gray-800 font-sans">
+<body class="bg-gradient-main flex flex-col min-h-screen text-gray-800">
 
     <!-- Loading Overlay -->
-    <div id="loading" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center hidden">
-        <div class="loader mb-4"></div>
-        <p class="text-gray-600 font-medium">Đang xử lý dữ liệu...</p>
+    <div id="loading" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center hidden">
+        <div class="loader-ring mb-2"></div>
+        <p class="text-indigo-600 font-bold text-lg tracking-wide animate-pulse">Đang đồng bộ dữ liệu...</p>
     </div>
 
     <!-- Header -->
-    <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-blue-600">Pride Check-In</h1>
-        <button onclick="openSettings()" class="text-gray-500 hover:text-blue-600 transition">
-            <i class="fas fa-cog text-2xl"></i>
+    <header class="bg-white/40 backdrop-blur-md px-6 py-4 flex justify-between items-center sticky top-0 z-30">
+        <div class="flex items-center gap-2">
+            <div class="bg-indigo-600 p-2 rounded-lg text-white">
+                <i class="fas fa-ticket-alt text-xl"></i>
+            </div>
+            <h1 class="text-2xl font-extrabold text-indigo-900 tracking-tight">Pride<span class="text-indigo-600">CheckIn</span></h1>
+        </div>
+        <button onclick="openSettings()" class="bg-white p-2 rounded-full shadow-sm text-indigo-600 hover:text-white hover:bg-indigo-600 transition-all duration-300">
+            <i class="fas fa-cog text-xl w-6 h-6 flex items-center justify-center"></i>
         </button>
     </header>
 
     <!-- Main Content -->
-    <main class="flex-grow flex flex-col items-center justify-center p-6 w-full max-w-lg mx-auto">
+    <main class="flex-grow flex flex-col items-center justify-center p-4 w-full max-w-md mx-auto z-10">
+        
         <!-- Trạng thái chưa chọn sự kiện -->
-        <div id="no-event" class="text-center">
-            <i class="fas fa-calendar-times text-6xl text-gray-300 mb-4"></i>
-            <h2 class="text-xl font-semibold text-gray-700">Chưa chọn sự kiện</h2>
-            <p class="text-gray-500 mt-2">Vui lòng chọn Sự kiện trong phần Cài đặt để bắt đầu.</p>
-            <button onclick="openSettings()" class="mt-6 bg-blue-100 text-blue-600 px-6 py-2 rounded-full font-medium hover:bg-blue-200 transition">Mở Cài Đặt</button>
+        <div id="no-event" class="glass-card w-full rounded-3xl p-8 text-center hidden pop-in">
+            <div class="inline-block p-5 bg-indigo-100 rounded-full mb-4">
+                <i class="fas fa-calendar-plus text-5xl text-indigo-500"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800">Bắt đầu nào!</h2>
+            <p class="text-gray-500 mt-2 mb-6">Bạn cần cấu hình sự kiện đang diễn ra để tiến hành đón khách.</p>
+            <button onclick="openSettings()" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-lg hover:bg-indigo-700 hover:shadow-lg transition-all">
+                Cài đặt sự kiện ngay
+            </button>
         </div>
 
         <!-- Trạng thái đã chọn sự kiện -->
-        <div id="active-event" class="w-full bg-white rounded-2xl shadow-lg p-6 text-center hidden">
-            <div class="inline-block p-4 bg-blue-50 rounded-full mb-4">
-                <i class="fas fa-qrcode text-4xl text-blue-600"></i>
+        <div id="active-event" class="glass-card w-full rounded-3xl p-6 text-center hidden pop-in">
+            <div class="relative inline-block mb-2">
+                <div class="absolute -inset-1 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full blur opacity-40"></div>
+                <div class="relative bg-white p-4 rounded-full">
+                    <i class="fas fa-qrcode text-4xl text-indigo-600"></i>
+                </div>
             </div>
-            <h2 id="ev-name" class="text-2xl font-bold text-gray-800 mb-2">Tên Sự Kiện</h2>
-            <div class="text-left bg-gray-50 p-4 rounded-lg mb-6 space-y-2 text-sm">
-                <p><i class="far fa-calendar-alt w-5 text-gray-500"></i> <span id="ev-date" class="font-medium"></span></p>
-                <p><i class="far fa-clock w-5 text-gray-500"></i> <span id="ev-time" class="font-medium"></span></p>
-                <p><i class="fas fa-map-marker-alt w-5 text-gray-500"></i> <span id="ev-location" class="font-medium"></span></p>
+            
+            <h2 id="ev-name" class="text-2xl font-extrabold text-gray-900 mt-3 mb-4 leading-tight">Tên Sự Kiện</h2>
+            
+            <div class="text-left bg-white/60 p-4 rounded-2xl mb-6 space-y-3 shadow-inner">
+                <div class="flex items-center text-gray-700">
+                    <div class="bg-indigo-100 p-2 rounded-lg mr-3"><i class="far fa-calendar-check text-indigo-600"></i></div>
+                    <span id="ev-date" class="font-semibold text-lg"></span>
+                </div>
+                <div class="flex items-center text-gray-700">
+                    <div class="bg-indigo-100 p-2 rounded-lg mr-3"><i class="far fa-clock text-indigo-600"></i></div>
+                    <span id="ev-time" class="font-semibold text-lg"></span>
+                </div>
+                <div class="flex items-center text-gray-700">
+                    <div class="bg-indigo-100 p-2 rounded-lg mr-3"><i class="fas fa-map-marker-alt text-indigo-600"></i></div>
+                    <span id="ev-location" class="font-semibold text-md"></span>
+                </div>
             </div>
-            <button onclick="startScanner()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition transform hover:scale-[1.02] text-lg">
-                BẮT ĐẦU CHECK-IN
+
+            <button onclick="startScanner()" class="relative w-full group">
+                <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl blur opacity-70 group-hover:opacity-100 transition duration-200"></div>
+                <div class="relative w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-4 rounded-2xl shadow-xl flex items-center justify-center gap-2 text-xl hover:scale-[1.02] transition-transform">
+                    <i class="fas fa-camera"></i> QUÉT VÉ NGAY
+                </div>
             </button>
         </div>
     </main>
 
     <!-- Scanner View -->
-    <div id="scanner-view" class="fixed inset-0 bg-black z-40 flex flex-col hidden">
-        <div class="p-4 flex justify-between items-center bg-black text-white">
-            <h3 class="text-lg font-bold">Quét QR Code Vé</h3>
-            <button onclick="stopScanner()" class="text-white bg-gray-800 p-2 rounded-full hover:bg-gray-700"><i class="fas fa-times text-xl"></i></button>
+    <div id="scanner-view" class="fixed inset-0 bg-gray-900 z-40 flex flex-col hidden">
+        <div class="px-6 py-4 flex justify-between items-center bg-gray-900 text-white shadow-md z-50">
+            <h3 class="text-xl font-bold tracking-wide"><i class="fas fa-qrcode mr-2"></i>Di chuyển QR vào khung</h3>
+            <button onclick="stopScanner()" class="bg-gray-700/50 p-2 px-4 rounded-full hover:bg-red-500 transition-colors">
+                <i class="fas fa-times mr-1"></i> Đóng
+            </button>
         </div>
-        <div class="flex-grow flex items-center justify-center">
-            <div id="reader" class="w-full max-w-md bg-black"></div>
+        <div class="flex-grow flex items-center justify-center bg-black w-full h-full p-4">
+            <!-- Khung reader sẽ tự động to ra -->
+            <div id="reader" class="w-full max-w-lg shadow-2xl bg-black rounded-2xl"></div>
         </div>
     </div>
 
     <!-- Settings Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
-        <div class="bg-white rounded-2xl p-6 w-11/12 max-w-md">
-            <h3 class="text-xl font-bold mb-4">Cài Đặt Sự Kiện</h3>
-            <div class="mb-4">
-                <label class="block text-gray-700 text-sm font-bold mb-2">Chọn sự kiện đang diễn ra:</label>
-                <select id="event-select" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></select>
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-3xl p-6 w-11/12 max-w-sm pop-in">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-xl font-extrabold text-gray-800">Cấu hình Check-in</h3>
+                <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-2xl"></i></button>
             </div>
-            <div class="flex justify-end space-x-3">
-                <button onclick="closeSettings()" class="px-4 py-2 text-gray-500 hover:text-gray-700 font-medium">Hủy</button>
-                <button onclick="saveSettings()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Lưu</button>
+            <div class="mb-6">
+                <label class="block text-gray-600 text-sm font-semibold mb-2">Chọn sự kiện đang diễn ra</label>
+                <div class="relative">
+                    <select id="event-select" class="w-full border-2 border-indigo-100 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 bg-gray-50 text-gray-800 font-medium appearance-none transition-colors"></select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-indigo-500">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
             </div>
+            <button onclick="saveSettings()" class="w-full bg-indigo-600 text-white rounded-xl py-3 font-bold text-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
+                Lưu cài đặt
+            </button>
         </div>
     </div>
 
     <!-- Result Modal -->
-    <div id="result-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center hidden">
-        <div id="result-content" class="bg-white rounded-2xl p-8 w-11/12 max-w-sm text-center transform transition-all">
-            <div id="result-icon" class="text-6xl mb-4"></div>
-            <h3 id="result-title" class="text-2xl font-bold mb-2"></h3>
-            <div id="result-details" class="text-gray-600 text-lg mb-6"></div>
-            <button onclick="closeResult()" class="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200">Đóng</button>
+    <div id="result-modal" class="fixed inset-0 bg-gray-900/70 backdrop-blur-md z-50 flex items-center justify-center hidden">
+        <div id="result-content" class="bg-white rounded-3xl p-8 w-11/12 max-w-sm text-center shadow-2xl pop-in">
+            <div id="result-icon" class="text-7xl mb-4"></div>
+            <h3 id="result-title" class="text-3xl font-extrabold mb-2"></h3>
+            <div id="result-details" class="text-gray-600 text-lg mb-8 bg-gray-50 p-4 rounded-2xl"></div>
+            <button onclick="closeResult()" id="btn-close-result" class="w-full font-bold py-3 rounded-xl transition-all text-lg"></button>
         </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 py-4 text-center mt-auto">
-        <p class="text-sm text-gray-500">Pride Check-In được xây dựng bởi <a href="https://www.pridehome.vn" target="_blank" class="text-blue-600 hover:underline font-semibold">Pride Home</a>.</p>
+    <footer class="bg-white/30 backdrop-blur-md py-4 text-center mt-auto z-10 border-t border-white/20">
+        <p class="text-sm text-gray-700 font-medium">Pride Check-In được xây dựng bởi <a href="https://www.pridehome.vn" target="_blank" class="text-indigo-700 hover:text-indigo-900 font-bold hover:underline">Pride Home</a>.</p>
     </footer>
 
     <script>
-        // --- CẤU HÌNH API URL ---
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyyZFy_NGNeiMem6J6TCK9XzifJfEPDDpqTvroRgzCkrOLZ1XMWVk554hKLTqtiG0Vk/exec"; 
+        // --- ĐIỀN URL WEB APP CỦA BẠN VÀO ĐÂY ---
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbynArNEtInLs9U4OnGCqLrHQFlv_Lsh-AWusNmVEJnJNMcsy0iPlArlZSlo00d1h3ws/exec"; 
         
         let html5QrcodeScanner = null;
         let activeEvent = JSON.parse(localStorage.getItem('pride_active_event')) || null;
@@ -178,12 +250,20 @@
             document.getElementById('scanner-view').classList.remove('hidden');
             html5QrcodeScanner = new Html5Qrcode("reader");
             
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            // Tính toán kích thước khung quét to lên (80% chiều rộng màn hình, tối đa 400px)
+            const boxSize = Math.min(window.innerWidth * 0.8, 400);
+
+            const config = { 
+                fps: 15, 
+                qrbox: { width: boxSize, height: boxSize },
+                aspectRatio: 1.0 
+            };
+            
             html5QrcodeScanner.start(
                 { facingMode: "environment" }, 
                 config, 
                 onScanSuccess, 
-                (errorMessage) => {} // Bỏ qua lỗi scan liên tục
+                (errorMessage) => {} 
             ).catch(err => {
                 alert("Không thể truy cập camera. Vui lòng cấp quyền.");
                 stopScanner();
@@ -211,40 +291,92 @@
                 showResult(result);
             } catch (err) {
                 showLoading(false);
-                showResult({ status: 'error', message: 'Lỗi kết nối. Vui lòng thử lại.' });
+                showResult({ status: 'error', message: 'Lỗi kết nối mạng. Vui lòng thử lại.' });
             }
+        }
+
+        // Bắn pháo giấy Confetti
+        function fireConfetti() {
+            const duration = 3000;
+            const end = Date.now() + duration;
+
+            (function frame() {
+                confetti({
+                    particleCount: 5,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 },
+                    colors: ['#4f46e5', '#8b5cf6', '#3b82f6']
+                });
+                confetti({
+                    particleCount: 5,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 },
+                    colors: ['#4f46e5', '#8b5cf6', '#3b82f6']
+                });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
         }
 
         function showResult(data) {
             const modal = document.getElementById('result-modal');
+            const contentBox = document.getElementById('result-content');
             const icon = document.getElementById('result-icon');
             const title = document.getElementById('result-title');
             const details = document.getElementById('result-details');
+            const btnClose = document.getElementById('btn-close-result');
+            
+            // Xóa animation cũ để trigger lại
+            contentBox.classList.remove('pop-in');
+            void contentBox.offsetWidth; // trigger reflow
+            contentBox.classList.add('pop-in');
             
             modal.classList.remove('hidden');
             clearTimeout(autoCloseTimer);
 
             if (data.status === 'success') {
-                icon.innerHTML = '<i class="fas fa-check-circle text-green-500"></i>';
-                title.textContent = 'Chào mừng';
-                title.className = 'text-3xl font-bold mb-2 text-green-600';
-                details.innerHTML = `<p class="font-bold text-xl text-gray-800">${data.data.hoTen}</p><p class="text-md mt-1">SĐT: ${data.data.sdt}</p>`;
+                fireConfetti(); // Kích hoạt pháo giấy
                 
-                // Tự động đóng sau 5 giây nếu thành công
-                autoCloseTimer = setTimeout(() => {
-                    closeResult();
-                }, 5000);
+                icon.innerHTML = '<i class="fas fa-check-circle text-green-500 animate-bounce"></i>';
+                title.textContent = 'Thành công!';
+                title.className = 'text-3xl font-extrabold mb-2 text-green-600';
+                details.innerHTML = `
+                    <p class="text-sm text-gray-500 mb-1">Khách mời</p>
+                    <p class="font-extrabold text-2xl text-gray-900">${data.data.hoTen}</p>
+                    <p class="text-md mt-2 font-medium text-gray-600"><i class="fas fa-phone-alt text-gray-400 mr-2"></i>${data.data.sdt}</p>
+                `;
+                
+                btnClose.textContent = "Đóng (5s)";
+                btnClose.className = "w-full bg-green-100 text-green-700 font-bold py-3 rounded-xl hover:bg-green-200 transition-all text-lg";
+
+                let timeLeft = 5;
+                autoCloseTimer = setInterval(() => {
+                    timeLeft -= 1;
+                    if (timeLeft <= 0) {
+                        closeResult();
+                    } else {
+                        btnClose.textContent = `Đóng (${timeLeft}s)`;
+                    }
+                }, 1000);
+
             } else {
                 icon.innerHTML = '<i class="fas fa-times-circle text-red-500"></i>';
-                title.textContent = 'Thất bại';
-                title.className = 'text-3xl font-bold mb-2 text-red-600';
-                details.innerHTML = `<p class="text-red-500 font-medium">${data.message}</p>`;
+                title.textContent = 'Vé không hợp lệ';
+                title.className = 'text-3xl font-extrabold mb-2 text-red-600';
+                details.innerHTML = `<p class="text-red-500 font-semibold text-center">${data.message}</p>`;
+                
+                btnClose.textContent = "Thử quét lại";
+                btnClose.className = "w-full bg-red-100 text-red-700 font-bold py-3 rounded-xl hover:bg-red-200 transition-all text-lg";
             }
         }
 
         function closeResult() {
             document.getElementById('result-modal').classList.add('hidden');
-            clearTimeout(autoCloseTimer);
+            clearInterval(autoCloseTimer);
         }
     </script>
 </body>
