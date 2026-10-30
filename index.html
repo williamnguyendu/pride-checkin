@@ -63,13 +63,12 @@
     <!-- Main Content -->
     <main class="flex-grow flex flex-col items-center justify-center p-4 w-full max-w-md mx-auto z-10">
         
-        <!-- Trạng thái chưa chọn sự kiện hoặc không có sự kiện -->
+        <!-- Trạng thái chưa chọn sự kiện -->
         <div id="no-event" class="glass-card w-full rounded-3xl p-8 text-center hidden pop-in">
             <div class="inline-block p-5 bg-indigo-100 rounded-full mb-4">
                 <i class="fas fa-calendar-plus text-5xl text-indigo-500"></i>
             </div>
             <h2 class="text-2xl font-bold text-gray-800">Chưa có sự kiện</h2>
-            <!-- Thay đổi dòng text theo yêu cầu -->
             <p class="text-gray-600 font-medium mt-2 mb-6">Vui lòng chọn Sự kiện trong phần Cài đặt.</p>
             <button onclick="openSettings()" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-lg hover:bg-indigo-700 hover:shadow-lg transition-all">
                 Mở cài đặt
@@ -113,14 +112,18 @@
 
     <!-- Scanner View -->
     <div id="scanner-view" class="fixed inset-0 bg-gray-900 z-40 flex flex-col hidden">
-        <div class="px-6 py-4 flex justify-between items-center bg-gray-900 text-white shadow-md z-50">
-            <h3 class="text-xl font-bold tracking-wide"><i class="fas fa-qrcode mr-2"></i>Di chuyển QR vào khung</h3>
-            <button onclick="stopScanner()" class="bg-gray-700/50 p-2 px-4 rounded-full hover:bg-red-500 transition-colors">
-                <i class="fas fa-times mr-1"></i> Đóng
+        <div class="px-4 py-4 flex justify-between items-center bg-gray-900 text-white shadow-md z-50">
+            <!-- Nút Lật Camera -->
+            <button onclick="switchCamera()" id="btn-switch-camera" class="bg-gray-700/50 p-2 px-3 rounded-full hover:bg-indigo-500 transition-colors hidden flex items-center text-sm font-semibold">
+                <i class="fas fa-sync-alt mr-2"></i> Lật
+            </button>
+            <h3 class="text-lg font-bold tracking-wide flex-grow text-center"><i class="fas fa-qrcode mr-2"></i>Quét QR</h3>
+            <button onclick="stopScanner()" class="bg-gray-700/50 p-2 px-3 rounded-full hover:bg-red-500 transition-colors flex items-center text-sm font-semibold">
+                <i class="fas fa-times mr-2"></i> Đóng
             </button>
         </div>
         <div class="flex-grow flex items-center justify-center bg-black w-full h-full p-4">
-            <div id="reader" class="w-full max-w-lg shadow-2xl bg-black rounded-2xl"></div>
+            <div id="reader" class="w-full max-w-lg shadow-2xl bg-black rounded-2xl overflow-hidden"></div>
         </div>
     </div>
 
@@ -169,17 +172,20 @@
         let activeEvent = JSON.parse(localStorage.getItem('pride_active_event')) || null;
         let eventList = [];
         let autoCloseTimer = null;
+        
+        // Quản lý trạng thái Camera
+        let currentFacingMode = "environment"; // Mặc định camera sau
+        let isCameraChecked = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             updateMainUI();
-            fetchEvents(true); // Kiểm tra ngầm khi load trang xem có sự kiện nào hợp lệ không
+            fetchEvents(true);
         });
 
         function showLoading(show) {
             document.getElementById('loading').classList.toggle('hidden', !show);
         }
 
-        // Đã cập nhật hàm fetchEvents
         async function fetchEvents(silent = false) {
             if (!silent) showLoading(true);
             try {
@@ -191,7 +197,6 @@
                     const select = document.getElementById('event-select');
                     if (select) select.innerHTML = '';
                     
-                    // Nếu không có sự kiện nào có TrangThai = "Cho phép"
                     if (eventList.length === 0) {
                         const opt = document.createElement('option');
                         opt.value = "";
@@ -202,9 +207,7 @@
                         activeEvent = null;
                         updateMainUI();
                     } else {
-                        // Cập nhật lại dropdown và validate sự kiện hiện tại
                         let isActiveEventValid = false;
-                        
                         eventList.forEach(ev => {
                             const opt = document.createElement('option');
                             opt.value = ev.id;
@@ -216,7 +219,6 @@
                             if (select) select.appendChild(opt);
                         });
                         
-                        // Nếu sự kiện đang chọn bị khóa hoặc xóa trên Sheet
                         if (activeEvent && !isActiveEventValid) {
                             localStorage.removeItem('pride_active_event');
                             activeEvent = null;
@@ -239,7 +241,6 @@
             document.getElementById('settings-modal').classList.add('hidden');
         }
 
-        // Đã cập nhật hàm saveSettings
         function saveSettings() {
             const select = document.getElementById('event-select');
             if (select.value) {
@@ -276,7 +277,9 @@
 
         function startScanner() {
             document.getElementById('scanner-view').classList.remove('hidden');
-            html5QrcodeScanner = new Html5Qrcode("reader");
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
             
             const boxSize = Math.min(window.innerWidth * 0.8, 400);
             const config = { 
@@ -286,20 +289,50 @@
             };
             
             html5QrcodeScanner.start(
-                { facingMode: "environment" }, 
+                { facingMode: currentFacingMode }, 
                 config, 
                 onScanSuccess, 
                 (errorMessage) => {} 
-            ).catch(err => {
+            ).then(() => {
+                // Kiểm tra xem thiết bị có nhiều camera hay không để hiện nút "Lật"
+                if (!isCameraChecked) {
+                    Html5Qrcode.getCameras().then(devices => {
+                        if (devices && devices.length > 1) {
+                            document.getElementById('btn-switch-camera').classList.remove('hidden');
+                        }
+                        isCameraChecked = true;
+                    }).catch(err => console.log("Không thể lấy danh sách camera", err));
+                }
+            }).catch(err => {
                 alert("Không thể truy cập camera. Vui lòng cấp quyền.");
                 stopScanner();
             });
+        }
+
+        // Hàm Đổi Camera
+        function switchCamera() {
+            if (html5QrcodeScanner) {
+                // Dừng camera hiện tại
+                html5QrcodeScanner.stop().then(() => {
+                    html5QrcodeScanner.clear();
+                    html5QrcodeScanner = null;
+                    
+                    // Đảo ngược trạng thái camera
+                    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+                    
+                    // Bật lại
+                    startScanner();
+                }).catch(err => {
+                    console.error("Lỗi khi lật camera:", err);
+                });
+            }
         }
 
         function stopScanner() {
             if(html5QrcodeScanner) {
                 html5QrcodeScanner.stop().then(() => {
                     html5QrcodeScanner.clear();
+                    html5QrcodeScanner = null;
                 }).catch(err => console.log(err));
             }
             document.getElementById('scanner-view').classList.add('hidden');
