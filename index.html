@@ -35,8 +35,9 @@
 
         .hidden { display: none !important; }
         
-        #reader { border: none !important; border-radius: 1rem; overflow: hidden; }
-        #reader video { object-fit: cover !important; }
+        /* Cải thiện CSS cho khung quét để tránh bị sụp (đen màn hình) */
+        #reader { border: none !important; border-radius: 1rem; overflow: hidden; min-height: 300px; display: flex; flex-direction: column; justify-content: center; background-color: #000; }
+        #reader video { object-fit: cover !important; width: 100% !important; border-radius: 1rem; }
     </style>
 </head>
 <body class="bg-gradient-main flex flex-col min-h-screen text-gray-800">
@@ -123,7 +124,7 @@
             </button>
         </div>
         <div class="flex-grow flex items-center justify-center bg-black w-full h-full p-4">
-            <div id="reader" class="w-full max-w-lg shadow-2xl bg-black rounded-2xl overflow-hidden"></div>
+            <div id="reader" class="w-full max-w-lg shadow-2xl bg-black rounded-2xl"></div>
         </div>
     </div>
 
@@ -173,8 +174,7 @@
         let eventList = [];
         let autoCloseTimer = null;
         
-        // Quản lý trạng thái Camera
-        let currentFacingMode = "environment"; // Mặc định camera sau
+        let currentFacingMode = "environment"; 
         let isCameraChecked = false;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -276,64 +276,72 @@
         }
 
         function startScanner() {
+            // Hiển thị khung đen trước
             document.getElementById('scanner-view').classList.remove('hidden');
-            if (!html5QrcodeScanner) {
-                html5QrcodeScanner = new Html5Qrcode("reader");
-            }
             
-            const boxSize = Math.min(window.innerWidth * 0.8, 400);
-            const config = { 
-                fps: 15, 
-                qrbox: { width: boxSize, height: boxSize },
-                aspectRatio: 1.0 
-            };
-            
-            html5QrcodeScanner.start(
-                { facingMode: currentFacingMode }, 
-                config, 
-                onScanSuccess, 
-                (errorMessage) => {} 
-            ).then(() => {
-                // Kiểm tra xem thiết bị có nhiều camera hay không để hiện nút "Lật"
-                if (!isCameraChecked) {
-                    Html5Qrcode.getCameras().then(devices => {
-                        if (devices && devices.length > 1) {
-                            document.getElementById('btn-switch-camera').classList.remove('hidden');
-                        }
-                        isCameraChecked = true;
-                    }).catch(err => console.log("Không thể lấy danh sách camera", err));
+            // SetTimeout 200ms giúp giao diện load 100% kích thước rồi mới bật camera, tránh lỗi đen màn hình
+            setTimeout(() => {
+                if (!html5QrcodeScanner) {
+                    html5QrcodeScanner = new Html5Qrcode("reader");
                 }
-            }).catch(err => {
-                alert("Không thể truy cập camera. Vui lòng cấp quyền.");
-                stopScanner();
-            });
+                
+                const boxSize = Math.min(window.innerWidth * 0.75, 300);
+                
+                // Bỏ aspectRatio để camera tự co giãn tự nhiên, không bị xung đột
+                const config = { 
+                    fps: 10, 
+                    qrbox: { width: boxSize, height: boxSize }
+                };
+                
+                html5QrcodeScanner.start(
+                    { facingMode: currentFacingMode }, 
+                    config, 
+                    onScanSuccess, 
+                    (errorMessage) => {} 
+                ).then(() => {
+                    if (!isCameraChecked) {
+                        Html5Qrcode.getCameras().then(devices => {
+                            if (devices && devices.length > 1) {
+                                document.getElementById('btn-switch-camera').classList.remove('hidden');
+                            }
+                            isCameraChecked = true;
+                        }).catch(err => console.log("Không thể lấy danh sách camera", err));
+                    }
+                }).catch(err => {
+                    alert("Không thể truy cập camera. Vui lòng cấp quyền hoặc tải lại trang.");
+                    stopScanner();
+                });
+            }, 200);
         }
 
-        // Hàm Đổi Camera
-        function switchCamera() {
+        async function switchCamera() {
             if (html5QrcodeScanner) {
-                // Dừng camera hiện tại
-                html5QrcodeScanner.stop().then(() => {
+                try {
+                    // Dừng hẳn camera cũ bằng await
+                    await html5QrcodeScanner.stop();
                     html5QrcodeScanner.clear();
                     html5QrcodeScanner = null;
                     
-                    // Đảo ngược trạng thái camera
+                    // Đảo chiều camera
                     currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
                     
                     // Bật lại
                     startScanner();
-                }).catch(err => {
+                } catch (err) {
                     console.error("Lỗi khi lật camera:", err);
-                });
+                }
             }
         }
 
-        function stopScanner() {
+        async function stopScanner() {
             if(html5QrcodeScanner) {
-                html5QrcodeScanner.stop().then(() => {
+                try {
+                    await html5QrcodeScanner.stop();
                     html5QrcodeScanner.clear();
                     html5QrcodeScanner = null;
-                }).catch(err => console.log(err));
+                } catch (err) {
+                    console.log(err);
+                }
             }
             document.getElementById('scanner-view').classList.add('hidden');
         }
