@@ -6,17 +6,14 @@
     <title>Pride Check-In</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <!-- Thêm thư viện pháo giấy Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         
-        /* Gradient Background sinh động */
         .bg-gradient-main { background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); }
         
-        /* Hiệu ứng Glassmorphism */
         .glass-card {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(12px);
@@ -24,10 +21,7 @@
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
         }
 
-        /* Loading Animation hiện đại */
-        .loader-ring {
-            display: inline-block; width: 60px; height: 60px;
-        }
+        .loader-ring { display: inline-block; width: 60px; height: 60px; }
         .loader-ring:after {
             content: " "; display: block; width: 48px; height: 48px; margin: 6px;
             border-radius: 50%; border: 4px solid #4f46e5;
@@ -36,13 +30,11 @@
         }
         @keyframes loader-ring { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Animation bật lên cho Modal */
         .pop-in { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
         .hidden { display: none !important; }
         
-        /* Tùy chỉnh khung camera trong html5-qrcode */
         #reader { border: none !important; border-radius: 1rem; overflow: hidden; }
         #reader video { object-fit: cover !important; }
     </style>
@@ -71,15 +63,16 @@
     <!-- Main Content -->
     <main class="flex-grow flex flex-col items-center justify-center p-4 w-full max-w-md mx-auto z-10">
         
-        <!-- Trạng thái chưa chọn sự kiện -->
+        <!-- Trạng thái chưa chọn sự kiện hoặc không có sự kiện -->
         <div id="no-event" class="glass-card w-full rounded-3xl p-8 text-center hidden pop-in">
             <div class="inline-block p-5 bg-indigo-100 rounded-full mb-4">
                 <i class="fas fa-calendar-plus text-5xl text-indigo-500"></i>
             </div>
-            <h2 class="text-2xl font-bold text-gray-800">Bắt đầu nào!</h2>
-            <p class="text-gray-500 mt-2 mb-6">Bạn cần cấu hình sự kiện đang diễn ra để tiến hành đón khách.</p>
+            <h2 class="text-2xl font-bold text-gray-800">Chưa có sự kiện</h2>
+            <!-- Thay đổi dòng text theo yêu cầu -->
+            <p class="text-gray-600 font-medium mt-2 mb-6">Vui lòng chọn Sự kiện trong phần Cài đặt.</p>
             <button onclick="openSettings()" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-lg hover:bg-indigo-700 hover:shadow-lg transition-all">
-                Cài đặt sự kiện ngay
+                Mở cài đặt
             </button>
         </div>
 
@@ -127,7 +120,6 @@
             </button>
         </div>
         <div class="flex-grow flex items-center justify-center bg-black w-full h-full p-4">
-            <!-- Khung reader sẽ tự động to ra -->
             <div id="reader" class="w-full max-w-lg shadow-2xl bg-black rounded-2xl"></div>
         </div>
     </div>
@@ -180,33 +172,62 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             updateMainUI();
+            fetchEvents(true); // Kiểm tra ngầm khi load trang xem có sự kiện nào hợp lệ không
         });
 
         function showLoading(show) {
             document.getElementById('loading').classList.toggle('hidden', !show);
         }
 
-        async function fetchEvents() {
-            showLoading(true);
+        // Đã cập nhật hàm fetchEvents
+        async function fetchEvents(silent = false) {
+            if (!silent) showLoading(true);
             try {
                 const res = await fetch(`${WEB_APP_URL}?action=getEvents`);
                 const json = await res.json();
-                if(json.status === 'success') {
+                
+                if (json.status === 'success') {
                     eventList = json.data;
                     const select = document.getElementById('event-select');
-                    select.innerHTML = '';
-                    eventList.forEach(ev => {
+                    if (select) select.innerHTML = '';
+                    
+                    // Nếu không có sự kiện nào có TrangThai = "Cho phép"
+                    if (eventList.length === 0) {
                         const opt = document.createElement('option');
-                        opt.value = ev.id;
-                        opt.textContent = ev.name;
-                        if(activeEvent && activeEvent.id === ev.id) opt.selected = true;
-                        select.appendChild(opt);
-                    });
+                        opt.value = "";
+                        opt.textContent = "Không có sự kiện nào được phép check-in";
+                        if (select) select.appendChild(opt);
+                        
+                        localStorage.removeItem('pride_active_event');
+                        activeEvent = null;
+                        updateMainUI();
+                    } else {
+                        // Cập nhật lại dropdown và validate sự kiện hiện tại
+                        let isActiveEventValid = false;
+                        
+                        eventList.forEach(ev => {
+                            const opt = document.createElement('option');
+                            opt.value = ev.id;
+                            opt.textContent = ev.name;
+                            if (activeEvent && activeEvent.id === ev.id) {
+                                opt.selected = true;
+                                isActiveEventValid = true;
+                            }
+                            if (select) select.appendChild(opt);
+                        });
+                        
+                        // Nếu sự kiện đang chọn bị khóa hoặc xóa trên Sheet
+                        if (activeEvent && !isActiveEventValid) {
+                            localStorage.removeItem('pride_active_event');
+                            activeEvent = null;
+                            updateMainUI();
+                        }
+                    }
                 }
             } catch (err) {
-                alert("Lỗi khi tải danh sách sự kiện: " + err);
+                if (!silent) alert("Lỗi khi tải danh sách sự kiện: " + err);
             }
-            showLoading(false);
+            if (!silent) showLoading(false);
         }
 
         async function openSettings() {
@@ -218,12 +239,19 @@
             document.getElementById('settings-modal').classList.add('hidden');
         }
 
+        // Đã cập nhật hàm saveSettings
         function saveSettings() {
             const select = document.getElementById('event-select');
-            if(select.value) {
+            if (select.value) {
                 const selected = eventList.find(e => e.id === select.value);
-                localStorage.setItem('pride_active_event', JSON.stringify(selected));
-                activeEvent = selected;
+                if (selected) {
+                    localStorage.setItem('pride_active_event', JSON.stringify(selected));
+                    activeEvent = selected;
+                    updateMainUI();
+                }
+            } else {
+                localStorage.removeItem('pride_active_event');
+                activeEvent = null;
                 updateMainUI();
             }
             closeSettings();
@@ -250,9 +278,7 @@
             document.getElementById('scanner-view').classList.remove('hidden');
             html5QrcodeScanner = new Html5Qrcode("reader");
             
-            // Tính toán kích thước khung quét to lên (80% chiều rộng màn hình, tối đa 400px)
             const boxSize = Math.min(window.innerWidth * 0.8, 400);
-
             const config = { 
                 fps: 15, 
                 qrbox: { width: boxSize, height: boxSize },
@@ -295,30 +321,14 @@
             }
         }
 
-        // Bắn pháo giấy Confetti
         function fireConfetti() {
             const duration = 3000;
             const end = Date.now() + duration;
 
             (function frame() {
-                confetti({
-                    particleCount: 5,
-                    angle: 60,
-                    spread: 55,
-                    origin: { x: 0 },
-                    colors: ['#4f46e5', '#8b5cf6', '#3b82f6']
-                });
-                confetti({
-                    particleCount: 5,
-                    angle: 120,
-                    spread: 55,
-                    origin: { x: 1 },
-                    colors: ['#4f46e5', '#8b5cf6', '#3b82f6']
-                });
-
-                if (Date.now() < end) {
-                    requestAnimationFrame(frame);
-                }
+                confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#4f46e5', '#8b5cf6', '#3b82f6'] });
+                confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#4f46e5', '#8b5cf6', '#3b82f6'] });
+                if (Date.now() < end) requestAnimationFrame(frame);
             }());
         }
 
@@ -330,16 +340,15 @@
             const details = document.getElementById('result-details');
             const btnClose = document.getElementById('btn-close-result');
             
-            // Xóa animation cũ để trigger lại
             contentBox.classList.remove('pop-in');
-            void contentBox.offsetWidth; // trigger reflow
+            void contentBox.offsetWidth;
             contentBox.classList.add('pop-in');
             
             modal.classList.remove('hidden');
             clearTimeout(autoCloseTimer);
 
             if (data.status === 'success') {
-                fireConfetti(); // Kích hoạt pháo giấy
+                fireConfetti();
                 
                 icon.innerHTML = '<i class="fas fa-check-circle text-green-500 animate-bounce"></i>';
                 title.textContent = 'Thành công!';
